@@ -456,17 +456,9 @@ function renderNoMatch() {
 async function renderPresenca() {
   const container = document.getElementById('dynamic-content');
   container.innerHTML = `
-    <!-- Confirmar Mensalista -->
-    <div class="card">
-      <div class="section-title">&#127919; Confirmar Presença — Mensalista</div>
-      <div class="field">
-        <label for="sel-mensalista">Eu sou...<span class="req">*</span></label>
-        <select id="sel-mensalista"><option value="">Carregando jogadores...</option></select>
-      </div>
-      <button class="btn" id="btn-confirmar" onclick="confirmarMensalista()" disabled>
-        <span class="spinner"></span>
-        <span class="btn-label">&#9989; Confirmar Presença</span>
-      </button>
+    <!-- Aviso confirmação via WhatsApp -->
+    <div class="info-box">
+      <p><strong>&#128241; Mensalistas confirmam pelo WhatsApp.</strong> O convite é enviado no domingo às 18h — basta tocar no link da mensagem pra confirmar ou recusar.</p>
     </div>
 
     <!-- Painel Status -->
@@ -494,6 +486,7 @@ async function renderPresenca() {
       <div class="collapsible-content" id="content-avulso">
         <div class="collapsible-inner">
           <div class="field"><label for="avulso-nome">Nome<span class="req">*</span></label><input type="text" id="avulso-nome" placeholder="Nome do jogador" /></div>
+          <div class="field"><label for="avulso-tel">WhatsApp (com DDD)</label><input type="text" id="avulso-tel" inputmode="numeric" placeholder="Ex: 5541999998888" /></div>
           <div class="field"><label>Posições que joga (selecione até 3)<span class="req">*</span></label>
             <div class="pos-grid">
               <div class="pos-option"><input type="checkbox" id="av-pos-zag" value="Zagueiro" onchange="limitPos(this)"/><label for="av-pos-zag" class="pos-label"><span class="pos-icon">&#128737;</span> Zagueiro</label></div>
@@ -520,7 +513,6 @@ async function renderPresenca() {
   `;
 
   await Promise.all([loadJogadores(), loadPresencas()]);
-  renderDropdownPresenca();
   renderPanelsPresenca();
 }
 
@@ -531,40 +523,35 @@ async function loadPresencas() {
   try { const r = await fetch(`${API}/pelada-presencas`); presencas = await r.json(); if (!Array.isArray(presencas)) presencas = []; } catch { presencas = []; }
 }
 
-function renderDropdownPresenca() {
-  const sel = document.getElementById('sel-mensalista');
-  if (!sel) return;
-  const confirmadosIds = new Set(presencas.filter(p => p.tipo === 'mensalista').map(p => String(p.jogador_id)));
-  const ativos = jogadores.filter(j => j.ativo !== false && j.tipo === 'mensalista' && !confirmadosIds.has(String(j.id)));
-  sel.innerHTML = '<option value="">Selecione seu nome...</option>';
-  ativos.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
-  ativos.forEach(j => { const o = document.createElement('option'); o.value = j.id; o.textContent = j.nome; sel.appendChild(o); });
-  sel.disabled = !ativos.length;
-  document.getElementById('btn-confirmar').disabled = !ativos.length;
-  if (!ativos.length && jogadores.length) sel.innerHTML = '<option value="">Todos já confirmaram!</option>';
+
+function dedupPresencas(arr) {
+  const m = new Map();
+  (arr || []).forEach(p => { const k = p.chave || (p.partida_id + '_' + p.jogador_id); m.set(k, p); });
+  return Array.from(m.values());
 }
 
 function renderPanelsPresenca() {
-  const confirmados = presencas.filter(p => p.status === 'confirmado' || p.confirmado);
+  const pres = dedupPresencas(presencas);
+  const confirmados = pres.filter(p => p.status === 'confirmado' || p.confirmado === true);
   const el = document.getElementById('count-confirmados');
   if (el) el.textContent = confirmados.length;
 
   const listConf = document.getElementById('list-confirmados');
   if (listConf) listConf.innerHTML = confirmados.length
-    ? confirmados.map(p => `<div class="panel-item panel-item-green"><span class="item-name">${esc(p.nome || p.jogador_nome || 'Jogador')}</span>${p.posicao_preferida ? `<span class="item-pos">${esc(p.posicao_preferida)}</span>` : ''}</div>`).join('')
+    ? confirmados.map(p => `<div class="panel-item panel-item-green"><span class="item-name">${esc(p.nome || p.jogador_nome || 'Jogador')}</span>${p.origem === 'promovido' ? '<span class="item-pos">avulso</span>' : ''}${p.posicao_preferida ? `<span class="item-pos">${esc(p.posicao_preferida)}</span>` : ''}</div>`).join('')
     : '<div class="panel-empty">Nenhuma confirmação ainda</div>';
 
-  const confirmadosIds = new Set(presencas.filter(p => p.tipo === 'mensalista').map(p => String(p.jogador_id)));
-  const faltam = jogadores.filter(j => j.ativo !== false && j.tipo === 'mensalista' && !confirmadosIds.has(String(j.id)));
+  const confirmadosIds = new Set(confirmados.filter(p => p.tipo === 'mensalista').map(p => String(p.jogador_id)));
+  const faltam = jogadores.filter(j => String(j.ativo).toLowerCase() !== 'nao' && j.tipo === 'mensalista' && !confirmadosIds.has(String(j.id)));
   const listF = document.getElementById('list-faltam');
   if (listF) listF.innerHTML = faltam.length
     ? faltam.map(j => `<div class="panel-item panel-item-red"><span class="item-name-muted">${esc(j.nome)}</span></div>`).join('')
     : '<div class="panel-empty">Todos confirmaram!</div>';
 
-  const espera = presencas.filter(p => p.tipo === 'avulso');
+  const espera = pres.filter(p => p.tipo === 'avulso' && p.status === 'espera');
   const listE = document.getElementById('list-espera');
   if (listE) listE.innerHTML = espera.length
-    ? espera.map((p, i) => `<div class="panel-item panel-item-yellow"><span class="item-order">#${i+1}</span><span class="item-name">${esc(p.nome || p.jogador_nome)}</span>${p.posicao_preferida ? `<span class="item-pos">${esc(p.posicao_preferida)}</span>` : ''}${p.nivel_convidado != null ? `<span class="item-level">Nv ${p.nivel_convidado}</span>` : ''}</div>`).join('')
+    ? espera.map((p, i) => `<div class="panel-item panel-item-yellow"><span class="item-order">#${i+1}</span><span class="item-name">${esc(p.nome || p.jogador_nome)}</span>${p.posicao_preferida ? `<span class="item-pos">${esc(p.posicao_preferida)}</span>` : ''}${p.nivel_convidado !== '' && p.nivel_convidado != null ? `<span class="item-level">Nv ${p.nivel_convidado}</span>` : ''}</div>`).join('')
     : '<div class="panel-empty">Nenhum avulso na fila</div>';
 }
 
@@ -593,18 +580,21 @@ async function confirmarAvulso() {
   const pref = document.getElementById('avulso-pref').value;
   if (!pref) { showToast('\u26A0', 'Selecione posição preferida', '', true); return; }
   const nivel = parseInt(document.getElementById('avulso-nivel').value);
+  const telEl = document.getElementById('avulso-tel');
+  const telefone = telEl ? telEl.value.replace(/\D/g, '') : '';
   const btn = document.getElementById('btn-avulso');
   btn.classList.add('loading'); btn.disabled = true;
   try {
-    await fetch(`${API}/pelada-confirmar`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ partida_id: partidaAtual.id, nome, tipo: 'avulso', posicao_1: checked[0]||'', posicao_2: checked[1]||'', posicao_3: checked[2]||'', posicao_preferida: pref, nivel_convidado: nivel }) });
+    await fetch(`${API}/pelada-confirmar`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ partida_id: partidaAtual.id, nome, tipo: 'avulso', telefone, posicao_1: checked[0]||'', posicao_2: checked[1]||'', posicao_3: checked[2]||'', posicao_preferida: pref, nivel_convidado: nivel }) });
     showToast('\u2705', 'Avulso cadastrado!', `${nome} na lista de espera`);
     document.getElementById('avulso-nome').value = '';
+    if (telEl) telEl.value = '';
     document.querySelectorAll('#content-avulso .pos-option input').forEach(c => c.checked = false);
     document.getElementById('avulso-pref').value = '';
     document.getElementById('avulso-nivel').value = 5;
     document.getElementById('avulso-nivel-val').textContent = '5';
     await Promise.all([loadPresencas(), loadJogadores()]);
-    renderDropdownPresenca(); renderPanelsPresenca();
+    renderPanelsPresenca();
   } catch (e) { showToast('\u274C', 'Erro ao cadastrar', e.message, true); }
   finally { btn.classList.remove('loading'); btn.disabled = false; }
 }

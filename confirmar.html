@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Confirmar Presença — Futebol de Terça</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --card: #161b22; --border: #30363d; --accent: #00e5a0;
+      --accent2: #7c3aed; --orange: #f59e0b; --text: #e6edf3; --muted: #8b949e;
+      --error: #f85149; --success: #3fb950; --input-bg: #0d1117; --radius: 10px;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 24px 16px;
+    }
+    .wrap { width: 100%; max-width: 460px; }
+    header { text-align: center; margin-bottom: 24px; }
+    .logo { font-size: 2.5rem; line-height: 1; margin-bottom: 10px; filter: drop-shadow(0 0 12px var(--accent)); }
+    header h1 { font-size: 1.4rem; font-weight: 700; }
+    header h1 span { color: var(--accent); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 22px; text-align: center; }
+    .match-info {
+      padding: 14px; margin-bottom: 22px; border-radius: 8px;
+      background: linear-gradient(135deg, rgba(0,229,160,.06), rgba(124,58,237,.06));
+      border: 1px solid var(--border);
+    }
+    .match-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+    .match-date { font-size: 1.1rem; font-weight: 700; margin-top: 4px; }
+    .greet { font-size: 1.05rem; color: var(--muted); margin-bottom: 6px; }
+    .greet b { color: var(--text); }
+    .question { font-size: 1.25rem; font-weight: 700; margin-bottom: 24px; }
+    .btn {
+      width: 100%; padding: 14px 24px; font-size: 1rem; font-weight: 700;
+      border: none; border-radius: 8px; cursor: pointer; font-family: inherit;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: opacity .15s, transform .1s; margin-bottom: 12px;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-yes { background: var(--accent); color: #0d1117; }
+    .btn-no { background: transparent; border: 1px solid var(--error); color: var(--error); }
+    .btn:hover:not(:disabled) { opacity: .88; }
+    .result-icon { font-size: 3.5rem; line-height: 1; margin-bottom: 14px; }
+    .result-title { font-size: 1.35rem; font-weight: 700; margin-bottom: 8px; }
+    .result-sub { color: var(--muted); font-size: 0.95rem; line-height: 1.5; }
+    .result-sub b { color: var(--text); }
+    .ok { color: var(--success); }
+    .no { color: var(--error); }
+    .muted-note { color: var(--muted); font-size: 0.8rem; margin-top: 18px; }
+    .spinner {
+      width: 34px; height: 34px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin .7s linear infinite; margin: 8px auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .change-link { display: inline-block; margin-top: 16px; color: var(--muted); font-size: 0.85rem; text-decoration: underline; cursor: pointer; background: none; border: none; font-family: inherit; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">&#9917;</div>
+      <h1>Futebol de <span>Terça</span></h1>
+    </header>
+    <div class="card" id="card">
+      <div class="spinner"></div>
+      <p class="result-sub">Carregando...</p>
+    </div>
+  </div>
+
+  <script>
+    const API = 'https://n8n-n8n.xktssy.easypanel.host/webhook';
+    const params = new URLSearchParams(location.search);
+    const jId = params.get('j');
+    const pIdParam = params.get('p');
+    const card = document.getElementById('card');
+
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    function fmtData(d){ if(!d) return ''; const p=String(d).split('-'); return p.length===3?`${p[2]}/${p[1]}`:d; }
+
+    let partida = null, jogador = null;
+
+    async function init(){
+      if(!jId){ return renderError('Link inválido', 'Faltam dados na URL. Use o link que você recebeu no WhatsApp.'); }
+      try {
+        const [jr, pr] = await Promise.all([
+          fetch(`${API}/pelada-jogadores`).then(r=>r.json()),
+          fetch(`${API}/pelada-partida-atual`).then(r=>r.json())
+        ]);
+        const jogadores = Array.isArray(jr)?jr:[];
+        jogador = jogadores.find(j=>String(j.id)===String(jId));
+        partida = pr && pr.id ? pr : null;
+        if(!jogador) return renderError('Jogador não encontrado', 'Esse link não corresponde a nenhum jogador cadastrado.');
+        if(!partida || partida.status==='fechada') return renderError('Sem partida aberta', 'Não há partida aberta pra confirmar no momento.');
+        if(pIdParam && String(pIdParam)!==String(partida.id)) return renderError('Link de outra partida', 'Esse link é de uma partida que já passou. Aguarde o convite da próxima.');
+        renderAsk();
+      } catch(e){ renderError('Ops, deu erro', 'Não consegui carregar os dados. Tenta de novo daqui a pouco.'); }
+    }
+
+    function renderAsk(){
+      card.innerHTML = `
+        <div class="match-info">
+          <div class="match-label">&#9917; Partida</div>
+          <div class="match-date">Terça ${fmtData(partida.data)} &middot; ${esc(partida.horario||'21h')}</div>
+        </div>
+        <p class="greet">Oi, <b>${esc(jogador.nome)}</b>!</p>
+        <p class="question">Vai jogar terça?</p>
+        <button class="btn btn-yes" id="b-yes">&#9989; Confirmar presença</button>
+        <button class="btn btn-no" id="b-no">&#10060; Não vou dessa vez</button>
+      `;
+      document.getElementById('b-yes').onclick = ()=>enviar('confirmado');
+      document.getElementById('b-no').onclick = ()=>enviar('recusado');
+    }
+
+    function renderLoading(){ card.innerHTML = '<div class="spinner"></div><p class="result-sub">Salvando...</p>'; }
+
+    async function enviar(status){
+      renderLoading();
+      const body = {
+        partida_id: partida.id,
+        jogador_id: jogador.id,
+        jogador_nome: jogador.nome,
+        tipo: 'mensalista',
+        telefone: jogador.telefone || '',
+        posicao_preferida: jogador.posicao_preferida || '',
+        status: status,
+        origem: 'whatsapp',
+        chave: `${partida.id}_${jogador.id}`
+      };
+      try {
+        const r = await fetch(`${API}/pelada-confirmar`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        if(!r.ok) throw new Error('erro');
+        renderDone(status);
+      } catch(e){
+        card.innerHTML = `<div class="result-icon">&#9888;&#65039;</div><p class="result-title">Não deu pra salvar</p><p class="result-sub">Tenta de novo.</p>`;
+        const b=document.createElement('button'); b.className='btn btn-yes'; b.style.marginTop='18px'; b.textContent='Tentar de novo'; b.onclick=renderAsk; card.appendChild(b);
+      }
+    }
+
+    function renderDone(status){
+      if(status==='confirmado'){
+        card.innerHTML = `
+          <div class="result-icon ok">&#9989;</div>
+          <p class="result-title ok">Presença confirmada!</p>
+          <p class="result-sub">Boa, <b>${esc(jogador.nome)}</b>! Te esperamos na <b>terça ${fmtData(partida.data)}</b> às ${esc(partida.horario||'21h')}. &#9917;</p>
+          <button class="change-link" id="ch">Mudou de ideia? Não vou mais</button>`;
+        document.getElementById('ch').onclick=()=>enviar('recusado');
+      } else {
+        card.innerHTML = `
+          <div class="result-icon no">&#10060;</div>
+          <p class="result-title no">Tudo bem, fica pra próxima!</p>
+          <p class="result-sub">Marcamos que você <b>não vai</b> jogar terça. Sua vaga vai pro próximo da lista de espera.</p>
+          <button class="change-link" id="ch">Na verdade vou sim, confirmar</button>`;
+        document.getElementById('ch').onclick=()=>enviar('confirmado');
+      }
+    }
+
+    function renderError(title, sub){
+      card.innerHTML = `<div class="result-icon">&#129300;</div><p class="result-title">${esc(title)}</p><p class="result-sub">${esc(sub)}</p>`;
+    }
+
+    init();
+  </script>
+</body>
+</html>

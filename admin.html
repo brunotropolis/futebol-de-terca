@@ -381,6 +381,21 @@
     </button>
   </section>
 
+  <!-- ══════════ GERENCIAR PRESENÇAS ══════════ -->
+  <section class="admin-section" id="sec-confirmacoes">
+    <div class="section-title"><span class="s-icon">&#9989;</span> Gerenciar Presen&ccedil;as</div>
+    <p style="color:var(--muted);font-size:.82rem;margin-bottom:12px;">Confirme ou tire qualquer jogador manualmente (ex: mudou de ideia, ou n&atilde;o h&aacute; avulso).</p>
+    <div id="conf-mensalistas"></div>
+    <div id="conf-avulsos" style="margin-top:14px;"></div>
+    <button class="btn btn-secondary" onclick="loadConfirmacoes()" style="margin-top:12px;">&#128260; Atualizar</button>
+  </section>
+
+  <!-- ══════════ DESEMPENHO ══════════ -->
+  <section class="admin-section" id="sec-desempenho">
+    <div class="section-title"><span class="s-icon">&#128202;</span> Desempenho por Partida</div>
+    <div id="desempenho-content"><p style="color:var(--muted);font-size:.85rem;">Carregando...</p></div>
+  </section>
+
   <!-- ══════════ 5. LINKS PARA COMPARTILHAR ══════════ -->
   <section class="admin-section" id="sec-links">
     <div class="section-title"><span class="s-icon">&#128279;</span> Links para Compartilhar</div>
@@ -416,6 +431,10 @@ const API_BASE = 'https://n8n-n8n.xktssy.easypanel.host/webhook';
 const ENDPOINTS = {
   admin:       `${API_BASE}/pelada-admin`,
   partidaAtual:`${API_BASE}/pelada-partida-atual`,
+  jogadores:   `${API_BASE}/pelada-jogadores`,
+  presencas:   `${API_BASE}/pelada-presencas`,
+  confirmar:   `${API_BASE}/pelada-confirmar`,
+  desempenho:  `${API_BASE}/pelada-desempenho`,
 };
 
 const SITE_BASE = window.location.href.replace(/\/[^/]*$/, '/');
@@ -1037,6 +1056,108 @@ function esc(str) {
   d.textContent = str;
   return d.innerHTML;
 }
+
+// ═══════════════════════════════════════════════
+// GERENCIAR PRESENÇAS (admin override) + DESEMPENHO
+// ═══════════════════════════════════════════════
+const STATUS_META = {
+  confirmado:   { label: 'Confirmado',   color: '#3fb950' },
+  pendente:     { label: 'Pendente',     color: '#8b949e' },
+  nao_confirmou:{ label: 'Não confirmou',color: '#f85149' },
+  recusado:     { label: 'Recusou',      color: '#f85149' },
+  espera:       { label: 'Espera',       color: '#eab308' },
+  '':           { label: 'Sem resposta', color: '#8b949e' },
+};
+function statusBadge(s) {
+  const m = STATUS_META[s] || { label: s, color: '#8b949e' };
+  return `<span style="font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:10px;border:1px solid ${m.color}55;color:${m.color};white-space:nowrap;">${esc(m.label)}</span>`;
+}
+let _confPartida = null;
+
+async function loadConfirmacoes() {
+  const elM = document.getElementById('conf-mensalistas');
+  const elA = document.getElementById('conf-avulsos');
+  if (!elM) return;
+  elM.innerHTML = '<p style="color:var(--muted);font-size:.85rem;">Carregando...</p>';
+  try {
+    const [jr, pr, par] = await Promise.all([
+      fetch(ENDPOINTS.jogadores).then(r => r.json()),
+      fetch(ENDPOINTS.presencas).then(r => r.json()),
+      fetch(ENDPOINTS.partidaAtual).then(r => r.json()),
+    ]);
+    _confPartida = (par && par.id) ? par : (Array.isArray(par) ? par.find(p => p.id) : null);
+    const jogadores = Array.isArray(jr) ? jr : [];
+    let presencas = Array.isArray(pr) ? pr : (pr && pr.presencas) ? pr.presencas : [];
+    // dedup por chave
+    const seen = new Map();
+    presencas.forEach(p => seen.set(p.chave || (p.partida_id + '_' + p.jogador_id), p));
+    presencas = Array.from(seen.values());
+    if (!_confPartida) { elM.innerHTML = '<p style="color:var(--muted);font-size:.85rem;">Nenhuma partida aberta.</p>'; elA.innerHTML=''; return; }
+    const byJog = {};
+    presencas.forEach(p => { byJog[String(p.jogador_id)] = p; });
+
+    const mens = jogadores.filter(j => String(j.ativo).toLowerCase() !== 'nao' && j.tipo === 'mensalista')
+      .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+    const nConf = mens.filter(j => (byJog[String(j.id)] || {}).status === 'confirmado').length;
+    elM.innerHTML = `<div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">Mensalistas — ${nConf}/12 confirmados</div>` +
+      mens.map(j => {
+        const p = byJog[String(j.id)] || {};
+        const st = p.status || '';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="flex:1;font-size:.9rem;">${esc(j.nome)}</span>
+          ${statusBadge(st)}
+          <button class="mini-btn" style="background:#3fb95022;color:#3fb950;border:1px solid #3fb95055;border-radius:6px;padding:4px 9px;font-size:.72rem;cursor:pointer;" onclick='adminSet(${JSON.stringify({id:j.id,nome:j.nome,tel:j.telefone||"",pos:j.posicao_preferida||"",tipo:"mensalista"})}, "confirmado")'>✓</button>
+          <button class="mini-btn" style="background:#f8514922;color:#f85149;border:1px solid #f8514955;border-radius:6px;padding:4px 9px;font-size:.72rem;cursor:pointer;" onclick='adminSet(${JSON.stringify({id:j.id,nome:j.nome,tel:j.telefone||"",pos:j.posicao_preferida||"",tipo:"mensalista"})}, "nao_confirmou")'>✗</button>
+        </div>`;
+      }).join('');
+
+    const avulsos = presencas.filter(p => p.tipo === 'avulso');
+    elA.innerHTML = '<div style="font-size:.78rem;color:var(--muted);margin:10px 0 8px;">Avulsos</div>' +
+      (avulsos.length ? avulsos.map(p => `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="flex:1;font-size:.9rem;">${esc(p.jogador_nome || p.nome)}</span>
+          ${statusBadge(p.status || 'espera')}
+          <button class="mini-btn" style="background:#3fb95022;color:#3fb950;border:1px solid #3fb95055;border-radius:6px;padding:4px 9px;font-size:.72rem;cursor:pointer;" onclick='adminSet(${JSON.stringify({id:p.jogador_id,nome:p.jogador_nome||p.nome,tel:p.telefone||"",pos:p.posicao_preferida||"",tipo:"avulso"})}, "confirmado")'>✓ Promover</button>
+          <button class="mini-btn" style="background:#f8514922;color:#f85149;border:1px solid #f8514955;border-radius:6px;padding:4px 9px;font-size:.72rem;cursor:pointer;" onclick='adminSet(${JSON.stringify({id:p.jogador_id,nome:p.jogador_nome||p.nome,tel:p.telefone||"",pos:p.posicao_preferida||"",tipo:"avulso"})}, "espera")'>↩ Espera</button>
+        </div>`).join('') : '<p style="color:var(--muted);font-size:.82rem;">Nenhum avulso cadastrado.</p>');
+  } catch (e) {
+    elM.innerHTML = '<p style="color:var(--error);font-size:.85rem;">Erro ao carregar.</p>';
+  }
+}
+
+async function adminSet(j, status) {
+  if (!_confPartida) return;
+  try {
+    await fetch(ENDPOINTS.confirmar, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partida_id: _confPartida.id, jogador_id: j.id, jogador_nome: j.nome,
+        tipo: j.tipo, telefone: j.tel, posicao_preferida: j.pos, status, origem: 'admin' }) });
+    showToast('Atualizado!', `${j.nome}: ${(STATUS_META[status]||{}).label||status}`, '✅');
+    loadConfirmacoes();
+  } catch (e) { showToast('Erro', 'Não consegui atualizar.', '❌', true); }
+}
+
+async function loadDesempenho() {
+  const el = document.getElementById('desempenho-content');
+  if (!el) return;
+  try {
+    const d = await fetch(ENDPOINTS.desempenho).then(r => r.json());
+    const partidas = (d && d.partidas) || [];
+    if (!partidas.length) { el.innerHTML = '<p style="color:var(--muted);font-size:.85rem;">Sem avaliações ainda.</p>'; return; }
+    el.innerHTML = partidas.map(p => {
+      const dt = p.data ? p.data.split('-').reverse().slice(0, 2).join('/') : '';
+      return `<div style="margin-bottom:14px;">
+        <div style="font-weight:700;font-size:.85rem;margin-bottom:6px;">⚽ ${dt}${p.placar && p.placar !== 'x' ? ' · ' + esc(p.placar) : ''}</div>
+        ${p.jogadores.map((j, i) => `<div style="display:flex;gap:8px;padding:4px 0;font-size:.85rem;">
+          <span style="color:var(--muted);width:22px;">${i + 1}º</span>
+          <span style="flex:1;">${esc(j.nome)}</span>
+          <span style="font-weight:700;color:var(--accent);">${j.media.toFixed(1)}</span>
+          <span style="color:var(--muted);font-size:.72rem;">(${j.n})</span>
+        </div>`).join('')}
+      </div>`;
+    }).join('');
+  } catch (e) { el.innerHTML = '<p style="color:var(--error);font-size:.85rem;">Erro ao carregar desempenho.</p>'; }
+}
+
+document.addEventListener('DOMContentLoaded', () => { loadConfirmacoes(); loadDesempenho(); });
 </script>
 </body>
 </html>
