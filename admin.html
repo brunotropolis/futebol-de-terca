@@ -324,6 +324,22 @@
     .m-on { color:var(--success); border:1px solid rgba(63,185,80,.4); }
     .m-off { color:var(--muted); border:1px solid var(--border); }
     .m-toggle { border-radius:6px; padding:4px 10px; font-size:.72rem; cursor:pointer; font-family:inherit; }
+
+    /* desktop: layout horizontal em 2 colunas (mobile fica empilhado) */
+    @media (min-width: 900px) {
+      body { align-items: flex-start; }
+      .wrap {
+        max-width: 1060px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 20px;
+        align-items: start;
+      }
+      .wrap > header,
+      .wrap > footer,
+      #sec-abrir { grid-column: 1 / -1; }
+      .admin-section { margin-bottom: 18px; }
+    }
   </style>
 </head>
 <body>
