@@ -268,9 +268,8 @@
     const POS_ORDER=['Zagueiro','Meia','Ponta','Atacante'];
     function campinho(preto, verm){
       const lista=(arr,label,cls)=>{
-        const g={}; arr.forEach(p=>{ const k=p.pos||'Outros'; (g[k]=g[k]||[]).push(p.nome); });
-        const order=POS_ORDER.filter(k=>g[k]).concat(Object.keys(g).filter(k=>POS_ORDER.indexOf(k)<0));
-        const lines=order.map(k=>`<li><span class="pos-ic">${POS_EMOJI[k]||'•'}</span> <b>${esc(k)}</b><br><span class="pos-nomes">${esc(g[k].join(', '))}</span></li>`).join('');
+        const sorted=arr.slice().sort((a,b)=>{ const ia=POS_ORDER.indexOf(a.pos), ib=POS_ORDER.indexOf(b.pos); return (ia<0?99:ia)-(ib<0?99:ib); });
+        const lines=sorted.map(p=>`<li><span class="pos-ic">${POS_EMOJI[p.pos]||'•'}</span> ${esc(p.pos||'')}: ${esc(p.nome)}</li>`).join('');
         return `<div class="team ${cls}"><h4>${label}</h4><ul class="time-list">${lines}</ul></div>`;
       };
       return '<div class="teams">'+lista(preto,'&#9899; Time Preto','team-a')+lista(verm,'&#128308; Time Vermelho','team-b')+'</div>';
