@@ -325,6 +325,15 @@
     .m-off { color:var(--muted); border:1px solid var(--border); }
     .m-toggle { border-radius:6px; padding:4px 10px; font-size:.72rem; cursor:pointer; font-family:inherit; }
 
+    /* times no status da partida */
+    .teams-status { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px; }
+    .team-col { background:var(--input-bg); border:1px solid var(--border); border-radius:8px; padding:12px; }
+    .team-col .tc-title { font-size:.78rem; font-weight:700; margin-bottom:8px; }
+    .team-preto .tc-title { color:var(--team-a); }
+    .team-vermelho .tc-title { color:var(--team-b); }
+    .team-col ul { list-style:none; }
+    .team-col li { padding:3px 0; font-size:.88rem; color:var(--text); }
+
     /* desktop: layout horizontal em 2 colunas (mobile fica empilhado) */
     @media (min-width: 900px) {
       body { align-items: flex-start; }
@@ -656,7 +665,11 @@ async function cancelarPartida() {
 async function loadCurrentMatch() {
   const container = document.getElementById('match-status-content');
   try {
-    const data = await apiGet(ENDPOINTS.partidaAtual);
+    const [data, presRaw, jogRaw] = await Promise.all([
+      apiGet(ENDPOINTS.partidaAtual),
+      fetch(ENDPOINTS.presencas).then(r => r.json()).catch(() => ({ presencas: [] })),
+      fetch(ENDPOINTS.jogadores).then(r => r.json()).catch(() => []),
+    ]);
 
     if (!data || !data.id) {
       currentMatch = null;
@@ -670,76 +683,65 @@ async function loadCurrentMatch() {
     }
 
     currentMatch = data;
-    confirmedPlayers = data.confirmados || [];
-    missingMensalistas = data.faltando_mensalistas || [];
-    waitingAvulsos = data.avulsos_espera || [];
 
-    const totalSlots = data.max_jogadores || 12;
-    const confirmed = confirmedPlayers.length;
+    // presen\u00E7as (dedup por chave)
+    let pres = Array.isArray(presRaw) ? presRaw : (presRaw && presRaw.presencas) ? presRaw.presencas : [];
+    const seen = new Map();
+    pres.forEach(p => seen.set(p.chave || (p.partida_id + '_' + p.jogador_id), p));
+    pres = Array.from(seen.values());
+    const jogadores = Array.isArray(jogRaw) ? jogRaw : [];
 
+    const confirmados = pres.filter(p => p.status === 'confirmado');
+    confirmedPlayers = confirmados.map(p => ({
+      id: p.jogador_id, nome: p.jogador_nome || p.nome, tipo: p.tipo,
+      posicoes: [p.posicao_preferida].filter(Boolean), primaryPos: p.posicao_preferida || 'Meia', media_geral: null,
+    }));
+    const confIds = new Set(confirmados.filter(p => p.tipo === 'mensalista').map(p => String(p.jogador_id)));
+    missingMensalistas = jogadores.filter(j => j.tipo === 'mensalista' && String(j.ativo).toLowerCase() !== 'nao' && !confIds.has(String(j.id))).map(j => ({ nome: j.nome }));
+    waitingAvulsos = pres.filter(p => p.tipo === 'avulso' && p.status === 'espera').map(p => ({ nome: p.jogador_nome || p.nome }));
+
+    const totalSlots = 12;
+    const confirmed = confirmados.length;
     const matchDate = data.data ? formatDateBR(new Date(data.data + 'T12:00:00')) : '--';
     const statusLabel = {
-      aberta: 'Aberta',
-      confirmando: 'Confirmando',
-      times_definidos: 'Times Definidos',
-      avaliando: 'Avaliando',
-      encerrada: 'Encerrada',
+      aberta: 'Aberta', confirmando: 'Confirmando', times_definidos: 'Times Definidos',
+      avaliando: 'Avaliando', encerrada: 'Encerrada',
     }[data.status] || data.status;
+
+    const preto = String(data.time_a_nomes || '').split(',').map(s => s.trim()).filter(Boolean);
+    const verm = String(data.time_b_nomes || '').split(',').map(s => s.trim()).filter(Boolean);
 
     let html = `
       <dl class="match-info">
         <dt>Data:</dt><dd>${matchDate} - ${data.horario || '21:00'}</dd>
         <dt>Status:</dt><dd><span class="badge badge-${data.status}">${statusLabel}</span></dd>
-        ${data.deadline ? `<dt>Deadline:</dt><dd>${data.deadline}</dd>` : ''}
       </dl>
-      <div class="counter">
-        <strong>${confirmed}/${totalSlots}</strong> confirmados
+      <div class="counter"><strong>${confirmed}/${totalSlots}</strong> confirmados ${confirmed >= totalSlots ? '\u2705' : ''}</div>`;
+
+    // Times selecionados (Preto x Vermelho)
+    if (preto.length || verm.length) {
+      html += `<div class="teams-status">
+        <div class="team-col team-preto"><div class="tc-title">\u26AB Time Preto (${preto.length})</div><ul>${preto.map(n => `<li>${esc(n)}</li>`).join('') || '<li>\u2014</li>'}</ul></div>
+        <div class="team-col team-vermelho"><div class="tc-title">\u{1F534} Time Vermelho (${verm.length})</div><ul>${verm.map(n => `<li>${esc(n)}</li>`).join('') || '<li>\u2014</li>'}</ul></div>
       </div>`;
-
-    // Confirmed players
-    if (confirmedPlayers.length > 0) {
-      html += `<div class="player-group">
-        <div class="player-group-title">\u2705 Confirmados (${confirmed})</div>`;
-      for (const p of confirmedPlayers) {
-        const typeBadge = p.tipo === 'mensalista'
-          ? '<span class="badge badge-mensalista">mensalista</span>'
-          : '<span class="badge badge-avulso">avulso</span>';
-        const pos = (p.posicoes || []).join(', ') || '--';
-        html += `
-          <div class="player-row">
-            <span class="p-name">${esc(p.nome)}</span>
-            ${typeBadge}
-            <span class="p-pos">${esc(pos)}</span>
-          </div>`;
+    } else if (confirmados.length) {
+      // ainda sem times: lista os confirmados
+      html += `<div class="player-group"><div class="player-group-title">\u2705 Confirmados (${confirmed})</div>`;
+      for (const p of confirmados) {
+        const typeBadge = p.tipo === 'mensalista' ? '<span class="badge badge-mensalista">mensalista</span>' : '<span class="badge badge-avulso">avulso</span>';
+        html += `<div class="player-row"><span class="p-name">${esc(p.jogador_nome || p.nome)}</span>${typeBadge}<span class="p-pos">${esc(p.posicao_preferida || '--')}</span></div>`;
       }
       html += '</div>';
     }
 
-    // Missing mensalistas
     if (missingMensalistas.length > 0) {
-      html += `<div class="player-group">
-        <div class="player-group-title">\u23F3 Mensalistas sem resposta (${missingMensalistas.length})</div>`;
-      for (const p of missingMensalistas) {
-        html += `
-          <div class="player-row missing">
-            <span class="p-name">${esc(p.nome)}</span>
-            <span class="badge badge-mensalista">mensalista</span>
-          </div>`;
-      }
+      html += `<div class="player-group"><div class="player-group-title">\u23F3 Mensalistas sem resposta (${missingMensalistas.length})</div>`;
+      for (const p of missingMensalistas) html += `<div class="player-row missing"><span class="p-name">${esc(p.nome)}</span><span class="badge badge-mensalista">mensalista</span></div>`;
       html += '</div>';
     }
-
-    // Waiting avulsos
     if (waitingAvulsos.length > 0) {
-      html += `<div class="player-group">
-        <div class="player-group-title">\u{1F551} Avulsos em espera (${waitingAvulsos.length})</div>`;
-      for (const p of waitingAvulsos) {
-        html += `
-          <div class="player-row waiting">
-            <span class="p-name">${esc(p.nome)}</span>
-            <span class="badge badge-avulso">avulso</span>
-          </div>`;
-      }
+      html += `<div class="player-group"><div class="player-group-title">\u{1F551} Avulsos em espera (${waitingAvulsos.length})</div>`;
+      for (const p of waitingAvulsos) html += `<div class="player-row waiting"><span class="p-name">${esc(p.nome)}</span><span class="badge badge-avulso">avulso</span></div>`;
       html += '</div>';
     }
 
