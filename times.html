@@ -202,7 +202,7 @@ async function loadTimes() {
     </div>`;
 
     // Score (if available)
-    if (placarA !== undefined && placarA !== '' && placarB !== undefined && placarB !== '') {
+    if (placarA != null && placarA !== '' && placarB != null && placarB !== '') {
       html += `<div class="score-display">
         <div class="score-label">PLACAR</div>
         <div class="score-numbers">
