@@ -58,12 +58,13 @@
     .pitch::after { content:''; position:absolute; left:50%; top:50%; width:96px; height:96px; transform:translate(-50%,-50%); border:2px solid rgba(255,255,255,.45); border-radius:50%; }
     .pbox { position:absolute; left:50%; transform:translateX(-50%); width:150px; height:46px; border:2px solid rgba(255,255,255,.35); }
     .pbox.top { top:0; border-top:none; } .pbox.bot { bottom:0; border-bottom:none; }
-    .player { position:absolute; transform:translate(-50%,-50%) rotateX(-45deg); transform-origin:center; width:62px; text-align:center; }
-    .player .dot { width:30px; height:30px; border-radius:50%; margin:0 auto; display:flex; align-items:center; justify-content:center;
-      font-weight:800; font-size:.74rem; color:#fff; border:2px solid rgba(255,255,255,.85); box-shadow:0 5px 10px rgba(0,0,0,.55); }
+    .player { position:absolute; transform:translate(-50%,-50%) rotateX(-45deg); transform-origin:center; width:78px; text-align:center; }
+    .player .dot { width:44px; height:44px; border-radius:50%; margin:0 auto; display:flex; align-items:center; justify-content:center;
+      font-weight:800; font-size:1.05rem; color:#fff; border:2px solid rgba(255,255,255,.9); box-shadow:0 6px 12px rgba(0,0,0,.6); }
     .player.preto .dot { background:#15171c; }
     .player.verm .dot { background:#e23636; }
-    .player .nm { margin-top:3px; font-size:.6rem; font-weight:700; color:#fff; text-shadow:0 1px 4px #000, 0 0 4px #000; white-space:nowrap; }
+    .player .nm { margin-top:5px; font-size:.74rem; font-weight:700; color:#fff; white-space:nowrap; display:inline-block;
+      background:rgba(0,0,0,.65); padding:2px 7px; border-radius:7px; }
     .pitch-legend { display:flex; justify-content:center; gap:20px; margin-top:14px; font-size:.78rem; color:var(--muted); }
     .pitch-legend .lg { display:flex; align-items:center; gap:7px; }
     .pitch-legend .sw { width:13px; height:13px; border-radius:50%; border:1px solid rgba(255,255,255,.6); }
@@ -257,23 +258,24 @@
       return {def,mid,att};
     }
     function campinho(preto, verm){
+      preto.forEach((p,i)=>p.num=i+1);
+      verm.forEach((p,i)=>p.num=i+1);
       const place=(arr, topPct, cls)=> (arr||[]).map((p,i,a)=>{
         const left=((i+1)/(a.length+1))*100;
-        const ini=((p.nome||'?').trim()[0]||'?').toUpperCase();
         const fn=(p.nome||'').trim().split(' ')[0];
-        return `<div class="player ${cls}" style="left:${left}%;top:${topPct}%"><div class="dot">${esc(ini)}</div><div class="nm">${esc(fn)}</div></div>`;
+        return `<div class="player ${cls}" style="left:${left}%;top:${topPct}%"><div class="dot">${p.num}</div><div class="nm">${esc(fn)}</div></div>`;
       }).join('');
       const v=formationRows(verm), pr=formationRows(preto);
       let pitch='<div class="pitch"><div class="pbox top"></div><div class="pbox bot"></div>';
-      // Vermelho na metade de cima (zaga 10% -> frente 40%)
       pitch+=place(v.def,11,'verm')+place(v.mid,26,'verm')+place(v.att,40,'verm');
-      // Preto na metade de baixo (frente 60% -> zaga 90%)
       pitch+=place(pr.att,60,'preto')+place(pr.mid,74,'preto')+place(pr.def,89,'preto');
       pitch+='</div>';
+      const lista=(arr,label,cls)=>`<div class="team ${cls}"><h4>${label}</h4><ul>${arr.map(p=>`<li>${p.num}. ${esc(p.nome)}${p.pos?` <span style="color:var(--muted)">· ${esc(p.pos)}</span>`:''}</li>`).join('')}</ul></div>`;
       return '<div class="pitch-wrap">'+pitch+'</div>'+
         '<div class="pitch-legend">'+
         '<span class="lg"><span class="sw" style="background:#15171c"></span>Time Preto</span>'+
-        '<span class="lg"><span class="sw" style="background:#e23636"></span>Time Vermelho</span></div>';
+        '<span class="lg"><span class="sw" style="background:#e23636"></span>Time Vermelho</span></div>'+
+        '<div class="teams" style="margin-top:16px">'+lista(preto,'&#9899; Time Preto','team-a')+lista(verm,'&#128308; Time Vermelho','team-b')+'</div>';
     }
 
     function renderEspera(espera){
