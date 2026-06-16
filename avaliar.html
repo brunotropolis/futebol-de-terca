@@ -170,8 +170,8 @@
         <!-- Match info -->
         <div class="match-info" id="match-info"></div>
 
-        <!-- Player selection -->
-        <div class="field">
+        <!-- Player selection (escondido quando vem por link personalizado) -->
+        <div class="field" id="player-field">
           <label for="sel-player">Eu sou... <span class="req">*</span></label>
           <select id="sel-player" onchange="buildRatingGrid()">
             <option value="">Selecione seu nome</option>
@@ -272,6 +272,22 @@ async function init() {
 
     document.getElementById('loading').style.display = 'none';
     document.getElementById('main-form').style.display = 'block';
+
+    // link personalizado: ?j={jogador_id} -> já abre como o jogador, sem escolher nome
+    const jParam = new URLSearchParams(location.search).get('j');
+    if (jParam) {
+      const me = allPlayers.find(p => String(p.id) === String(jParam));
+      if (me) {
+        sel.value = jParam;
+        document.getElementById('player-field').style.display = 'none';
+        const who = document.createElement('div');
+        who.style.cssText = 'text-align:center;font-weight:700;font-size:1.05rem;margin:6px 0 10px;';
+        who.innerHTML = 'Avaliando como <span style="color:var(--accent)">' + me.nome + '</span>';
+        const mi = document.getElementById('match-info');
+        mi.parentElement.insertBefore(who, mi.nextSibling);
+        buildRatingGrid();
+      }
+    }
 
   } catch (err) {
     document.getElementById('loading').style.display = 'none';
