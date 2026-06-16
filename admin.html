@@ -1087,7 +1087,7 @@ async function salvarPlacar() {
     try {
       const r = await fetch(ENDPOINTS.conviteAvaliacao, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ partida_id: currentMatch.id, placar_a: placarA, placar_b: placarB }),
+        body: JSON.stringify({ partida_id: currentMatch.id, placar_a: placarA, placar_b: placarB, data: currentMatch.data }),
       });
       const d = await r.json().catch(() => ({}));
       showToast('Avaliação aberta!', `Convite enviado pra ${d.enviados != null ? d.enviados : 'os'} jogadores avaliarem.`, '⭐');
