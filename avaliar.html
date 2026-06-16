@@ -290,7 +290,7 @@ function buildRatingGrid() {
 
   const others = allPlayers.filter(p => p.id !== playerId);
   document.getElementById('rating-items').innerHTML = others.map(p => `
-    <div class="rating-item" data-id="${p.id}">
+    <div class="rating-item" data-id="${p.id}" data-nome="${p.nome}">
       <span class="rating-name">${p.nome}</span>
       <div class="rating-slider">
         <input type="range" min="0" max="10" value="5" step="1"
@@ -307,7 +307,9 @@ async function enviarAvaliacoes() {
   const errEl = document.getElementById('err');
   errEl.classList.remove('show');
 
-  const avaliadorId = document.getElementById('sel-player').value;
+  const selPlayer = document.getElementById('sel-player');
+  const avaliadorId = selPlayer.value;
+  const avaliadorNome = selPlayer.options[selPlayer.selectedIndex] ? selPlayer.options[selPlayer.selectedIndex].text : '';
   if (!avaliadorId) {
     errEl.textContent = 'Selecione seu nome primeiro.';
     errEl.classList.add('show');
@@ -317,6 +319,7 @@ async function enviarAvaliacoes() {
   const items = document.querySelectorAll('#rating-items .rating-item');
   const notas = Array.from(items).map(item => ({
     jogador_id: item.dataset.id,
+    jogador_nome: item.dataset.nome || '',
     nota: parseInt(item.querySelector('input[type="range"]').value),
   }));
 
@@ -331,6 +334,7 @@ async function enviarAvaliacoes() {
       body: JSON.stringify({
         partida_id: currentPartida.id,
         avaliador_id: avaliadorId,
+        avaliador_nome: avaliadorNome,
         notas,
       }),
     });
