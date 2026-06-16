@@ -306,6 +306,24 @@
       .teams-grid { grid-template-columns: 1fr; }
       .btn-row { flex-direction: column; }
     }
+    /* form mensalista */
+    .field { margin-bottom: 12px; }
+    .field label { display:block; font-size:.8rem; color:var(--muted); margin-bottom:5px; }
+    .field input, .field select { width:100%; background:var(--input-bg); border:1px solid var(--border);
+      border-radius:7px; color:var(--text); font-size:.92rem; padding:9px 12px; outline:none; font-family:inherit; }
+    .field input:focus, .field select:focus { border-color:var(--accent); }
+    .pos-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .pos-opt input { position:absolute; opacity:0; }
+    .pos-opt label { display:block; text-align:center; padding:9px; border:1px solid var(--border);
+      border-radius:7px; background:var(--input-bg); cursor:pointer; font-size:.85rem; color:var(--muted); }
+    .pos-opt input:checked + label { border-color:var(--accent); color:var(--accent); background:rgba(0,229,160,.06); }
+    .m-row { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--border); }
+    .m-row .m-nm { flex:1; font-size:.9rem; }
+    .m-row .m-tel { font-size:.72rem; color:var(--muted); }
+    .m-badge { font-size:.66rem; font-weight:700; padding:2px 8px; border-radius:10px; }
+    .m-on { color:var(--success); border:1px solid rgba(63,185,80,.4); }
+    .m-off { color:var(--muted); border:1px solid var(--border); }
+    .m-toggle { border-radius:6px; padding:4px 10px; font-size:.72rem; cursor:pointer; font-family:inherit; }
   </style>
 </head>
 <body>
@@ -396,6 +414,31 @@
     <div id="desempenho-content"><p style="color:var(--muted);font-size:.85rem;">Carregando...</p></div>
   </section>
 
+  <!-- ══════════ MENSALISTAS (cadastro + ativo/inativo) ══════════ -->
+  <section class="admin-section" id="sec-mensalistas">
+    <div class="section-title"><span class="s-icon">&#128100;</span> Mensalistas</div>
+    <p style="color:var(--muted);font-size:.82rem;margin-bottom:12px;">Cadastre e ative/desative mensalistas (pra rotacionar o grupo). Só os <b>ativos</b> recebem o convite no domingo.</p>
+    <div id="mensalistas-list"><p style="color:var(--muted);font-size:.85rem;">Carregando...</p></div>
+
+    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+      <div style="font-size:.82rem;font-weight:700;margin-bottom:10px;">&#10133; Cadastrar mensalista</div>
+      <div class="field"><label>Nome</label><input type="text" id="m-nome" placeholder="Nome do mensalista" /></div>
+      <div class="field"><label>WhatsApp (com DDD)</label><input type="text" id="m-tel" inputmode="numeric" placeholder="Ex: 5541999998888" /></div>
+      <div class="field"><label>Posições (até 3)</label>
+        <div class="pos-grid">
+          <div class="pos-opt"><input type="checkbox" id="mp-zag" value="Zagueiro" onchange="limitPosM(this)"/><label for="mp-zag">🛡️ Zagueiro</label></div>
+          <div class="pos-opt"><input type="checkbox" id="mp-mei" value="Meia" onchange="limitPosM(this)"/><label for="mp-mei">🎯 Meia</label></div>
+          <div class="pos-opt"><input type="checkbox" id="mp-pon" value="Ponta" onchange="limitPosM(this)"/><label for="mp-pon">⚡ Ponta</label></div>
+          <div class="pos-opt"><input type="checkbox" id="mp-ata" value="Atacante" onchange="limitPosM(this)"/><label for="mp-ata">⚽ Atacante</label></div>
+        </div>
+      </div>
+      <div class="field"><label>Posição preferida</label>
+        <select id="m-pref"><option value="">Selecione...</option><option>Zagueiro</option><option>Meia</option><option>Ponta</option><option>Atacante</option></select>
+      </div>
+      <button class="btn" onclick="cadastrarMensalista()" id="m-btn">&#10133; Cadastrar mensalista</button>
+    </div>
+  </section>
+
   <!-- ══════════ 5. LINKS PARA COMPARTILHAR ══════════ -->
   <section class="admin-section" id="sec-links">
     <div class="section-title"><span class="s-icon">&#128279;</span> Links para Compartilhar</div>
@@ -435,6 +478,7 @@ const ENDPOINTS = {
   presencas:   `${API_BASE}/pelada-presencas`,
   confirmar:   `${API_BASE}/pelada-confirmar`,
   desempenho:  `${API_BASE}/pelada-desempenho`,
+  cadastro:    `${API_BASE}/pelada-cadastro`,
 };
 
 const SITE_BASE = window.location.href.replace(/\/[^/]*$/, '/');
@@ -1157,7 +1201,67 @@ async function loadDesempenho() {
   } catch (e) { el.innerHTML = '<p style="color:var(--error);font-size:.85rem;">Erro ao carregar desempenho.</p>'; }
 }
 
-document.addEventListener('DOMContentLoaded', () => { loadConfirmacoes(); loadDesempenho(); });
+// ═══════════════════════════════════════════════
+// MENSALISTAS — cadastro + ativo/inativo
+// ═══════════════════════════════════════════════
+let _mensCache = [];
+function limitPosM(el){ if(document.querySelectorAll('#sec-mensalistas .pos-opt input:checked').length > 3) el.checked = false; }
+
+async function loadMensalistas() {
+  const el = document.getElementById('mensalistas-list');
+  if (!el) return;
+  try {
+    const jr = await fetch(ENDPOINTS.jogadores).then(r => r.json());
+    const mens = (Array.isArray(jr) ? jr : []).filter(j => j.tipo === 'mensalista')
+      .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+    _mensCache = mens;
+    const ativos = mens.filter(j => String(j.ativo).toLowerCase() !== 'nao').length;
+    el.innerHTML = `<div style="font-size:.78rem;color:var(--muted);margin-bottom:6px;">${ativos} ativos · ${mens.length} no total</div>` +
+      mens.map((j, i) => {
+        const on = String(j.ativo).toLowerCase() !== 'nao';
+        return `<div class="m-row">
+          <span class="m-nm">${esc(j.nome)} <span class="m-tel">${esc(j.telefone || 's/ tel')}</span></span>
+          <span class="m-badge ${on ? 'm-on' : 'm-off'}">${on ? 'Ativo' : 'Inativo'}</span>
+          <button class="m-toggle" style="background:${on ? '#f8514922' : '#3fb95022'};color:${on ? '#f85149' : '#3fb950'};border:1px solid ${on ? '#f8514955' : '#3fb95055'};" onclick="toggleMensalista(${i})">${on ? 'Desativar' : 'Ativar'}</button>
+        </div>`;
+      }).join('');
+  } catch (e) { el.innerHTML = '<p style="color:var(--error);font-size:.85rem;">Erro ao carregar.</p>'; }
+}
+
+async function toggleMensalista(i) {
+  const j = _mensCache[i]; if (!j) return;
+  const novo = String(j.ativo).toLowerCase() !== 'nao' ? 'nao' : 'sim';
+  try {
+    await fetch(ENDPOINTS.cadastro, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...j, ativo: novo }) });
+    showToast('Atualizado!', `${j.nome}: ${novo === 'sim' ? 'ativado' : 'desativado'}`, '✅');
+    loadMensalistas();
+  } catch (e) { showToast('Erro', 'Não consegui atualizar.', '❌', true); }
+}
+
+async function cadastrarMensalista() {
+  const nome = document.getElementById('m-nome').value.trim();
+  const tel = document.getElementById('m-tel').value.replace(/\D/g, '');
+  const checked = Array.from(document.querySelectorAll('#sec-mensalistas .pos-opt input:checked')).map(c => c.value);
+  const pref = document.getElementById('m-pref').value;
+  if (!nome) { showToast('Erro', 'Preencha o nome.', '❌', true); return; }
+  if (tel.length < 10) { showToast('Erro', 'WhatsApp com DDD é obrigatório.', '❌', true); return; }
+  const btn = document.getElementById('m-btn'); btn.disabled = true;
+  try {
+    await fetch(ENDPOINTS.cadastro, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, telefone: tel, tipo: 'mensalista', ativo: 'sim',
+        posicao_1: checked[0] || '', posicao_2: checked[1] || '', posicao_3: checked[2] || '',
+        posicao_preferida: pref || checked[0] || '' }) });
+    showToast('Cadastrado!', `${nome} adicionado aos mensalistas.`, '✅');
+    document.getElementById('m-nome').value = ''; document.getElementById('m-tel').value = '';
+    document.querySelectorAll('#sec-mensalistas .pos-opt input').forEach(c => c.checked = false);
+    document.getElementById('m-pref').value = '';
+    loadMensalistas();
+  } catch (e) { showToast('Erro', 'Não consegui cadastrar.', '❌', true); }
+  finally { btn.disabled = false; }
+}
+
+document.addEventListener('DOMContentLoaded', () => { loadConfirmacoes(); loadDesempenho(); loadMensalistas(); });
 </script>
 </body>
 </html>
