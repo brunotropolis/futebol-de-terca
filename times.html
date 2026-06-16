@@ -154,13 +154,32 @@ function showToast(icon, title, msg) {
 }
 function hideToast() { document.getElementById('toast').classList.remove('show'); }
 
+// normaliza um time ({ids, nomes} OU array) -> [{nome, posicao_preferida}]
+function teamPlayers(team, jmap) {
+  if (!team) return [];
+  if (Array.isArray(team)) return team.map(p => ({ nome: p.nome || p, posicao_preferida: p.posicao_preferida || '' }));
+  const nomes = Array.isArray(team.nomes) ? team.nomes : (typeof team.nomes === 'string' ? team.nomes.split(',') : []);
+  const ids = (typeof team.ids === 'string' ? team.ids.split(',') : Array.isArray(team.ids) ? team.ids : []).map(s => String(s).trim());
+  return nomes.map((nome, i) => ({
+    nome: String(nome).trim(),
+    posicao_preferida: (jmap[ids[i]] || {}).posicao_preferida || '',
+  }));
+}
+
 async function loadTimes() {
   const content = document.getElementById('content');
   try {
-    const res = await fetch(`${API_BASE}/pelada-times`);
-    const data = await res.json();
+    const [data, jogRaw] = await Promise.all([
+      fetch(`${API_BASE}/pelada-times`).then(r => r.json()),
+      fetch(`${API_BASE}/pelada-jogadores`).then(r => r.json()).catch(() => []),
+    ]);
+    const jmap = {};
+    (Array.isArray(jogRaw) ? jogRaw : []).forEach(j => { jmap[String(j.id)] = j; });
 
-    if (!data || !data.time_a || !data.time_a.length) {
+    const preto = teamPlayers(data && data.time_a, jmap);
+    const verm = teamPlayers(data && data.time_b, jmap);
+
+    if (!preto.length && !verm.length) {
       content.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">&#9878;</div>
@@ -211,8 +230,8 @@ async function loadTimes() {
     };
 
     html += '<div class="teams-grid">';
-    html += renderTeam(data.time_a, '\u26AB TIME PRETO', 'team-a');
-    html += renderTeam(data.time_b, '\uD83D\uDD34 TIME VERMELHO', 'team-b');
+    html += renderTeam(preto, '\u26AB TIME PRETO', 'team-a');
+    html += renderTeam(verm, '\uD83D\uDD34 TIME VERMELHO', 'team-b');
     html += '</div>';
 
     // Copy button
@@ -223,7 +242,7 @@ async function loadTimes() {
     content.innerHTML = html;
 
     // Store for copy
-    window._teamsData = data;
+    window._teamsData = { data, preto, verm };
 
   } catch (err) {
     content.innerHTML = `
@@ -235,8 +254,9 @@ async function loadTimes() {
 }
 
 function copiarTimes() {
-  const data = window._teamsData;
-  if (!data) return;
+  const store = window._teamsData;
+  if (!store) return;
+  const data = store.data || {};
 
   const formatTeam = (players, label) => {
     const grouped = {};
@@ -253,8 +273,8 @@ function copiarTimes() {
   };
 
   const text = `\u26BD *FUTEBOL DE TERÇA - ${data.data || 'Hoje'}*\n\n` +
-    formatTeam(data.time_a, '\u26AB TIME PRETO') + '\n' +
-    formatTeam(data.time_b, '\uD83D\uDD34 TIME VERMELHO');
+    formatTeam(store.preto, '\u26AB TIME PRETO') + '\n' +
+    formatTeam(store.verm, '\uD83D\uDD34 TIME VERMELHO');
 
   navigator.clipboard.writeText(text).then(() => {
     showToast('\uD83D\uDCCB', 'Copiado!', 'Cole no grupo do WhatsApp.');
