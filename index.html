@@ -42,6 +42,13 @@
     .chip-prom { background:rgba(124,58,237,.12); border-color:rgba(124,58,237,.4); }
     .empty { color:var(--muted); font-size:.85rem; text-align:center; padding:8px; }
 
+    /* lista de times por posição */
+    .time-list { list-style:none; }
+    .time-list li { padding:7px 0; border-bottom:1px solid var(--border); font-size:.85rem; }
+    .time-list li:last-child { border-bottom:none; }
+    .time-list .pos-ic { margin-right:4px; }
+    .time-list .pos-nomes { color:var(--muted); }
+
     /* campinho 3D (escalação) */
     .pitch-card { background:linear-gradient(180deg,#0c1f12,#0a160d); border:1px solid var(--border); border-radius:var(--radius); padding:26px 12px 14px; overflow:hidden; }
     .pitch-wrap { perspective:1100px; }
@@ -240,7 +247,7 @@
         const vermP =tbN.map((n,i)=>({nome:n, pos:posMap[tbI[i]]||''}));
         if(pretoP.length||vermP.length){
           if(elTL) elTL.style.display='';
-          elTeams.innerHTML='<div class="pitch-card">'+campinho(pretoP,vermP)+'</div>';
+          elTeams.innerHTML='<div class="card">'+campinho(pretoP,vermP)+'</div>';
         } else { if(elTL) elTL.style.display='none'; elTeams.innerHTML=''; }
       }
       renderEspera(espera);
@@ -257,25 +264,16 @@
       });
       return {def,mid,att};
     }
+    const POS_EMOJI={Zagueiro:'🛡️',Meia:'🎯',Ponta:'⚡',Atacante:'⚽'};
+    const POS_ORDER=['Zagueiro','Meia','Ponta','Atacante'];
     function campinho(preto, verm){
-      preto.forEach((p,i)=>p.num=i+1);
-      verm.forEach((p,i)=>p.num=i+1);
-      const place=(arr, topPct, cls)=> (arr||[]).map((p,i,a)=>{
-        const left=((i+1)/(a.length+1))*100;
-        const fn=(p.nome||'').trim().split(' ')[0];
-        return `<div class="player ${cls}" style="left:${left}%;top:${topPct}%"><div class="dot">${p.num}</div><div class="nm">${esc(fn)}</div></div>`;
-      }).join('');
-      const v=formationRows(verm), pr=formationRows(preto);
-      let pitch='<div class="pitch"><div class="pbox top"></div><div class="pbox bot"></div>';
-      pitch+=place(v.def,11,'verm')+place(v.mid,26,'verm')+place(v.att,40,'verm');
-      pitch+=place(pr.att,60,'preto')+place(pr.mid,74,'preto')+place(pr.def,89,'preto');
-      pitch+='</div>';
-      const lista=(arr,label,cls)=>`<div class="team ${cls}"><h4>${label}</h4><ul>${arr.map(p=>`<li>${p.num}. ${esc(p.nome)}${p.pos?` <span style="color:var(--muted)">· ${esc(p.pos)}</span>`:''}</li>`).join('')}</ul></div>`;
-      return '<div class="pitch-wrap">'+pitch+'</div>'+
-        '<div class="pitch-legend">'+
-        '<span class="lg"><span class="sw" style="background:#15171c"></span>Time Preto</span>'+
-        '<span class="lg"><span class="sw" style="background:#e23636"></span>Time Vermelho</span></div>'+
-        '<div class="teams" style="margin-top:16px">'+lista(preto,'&#9899; Time Preto','team-a')+lista(verm,'&#128308; Time Vermelho','team-b')+'</div>';
+      const lista=(arr,label,cls)=>{
+        const g={}; arr.forEach(p=>{ const k=p.pos||'Outros'; (g[k]=g[k]||[]).push(p.nome); });
+        const order=POS_ORDER.filter(k=>g[k]).concat(Object.keys(g).filter(k=>POS_ORDER.indexOf(k)<0));
+        const lines=order.map(k=>`<li><span class="pos-ic">${POS_EMOJI[k]||'•'}</span> <b>${esc(k)}</b><br><span class="pos-nomes">${esc(g[k].join(', '))}</span></li>`).join('');
+        return `<div class="team ${cls}"><h4>${label}</h4><ul class="time-list">${lines}</ul></div>`;
+      };
+      return '<div class="teams">'+lista(preto,'&#9899; Time Preto','team-a')+lista(verm,'&#128308; Time Vermelho','team-b')+'</div>';
     }
 
     function renderEspera(espera){
