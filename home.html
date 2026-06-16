@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Futebol de Terça</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#0d1117; --card:#161b22; --border:#30363d; --accent:#00e5a0; --accent2:#7c3aed;
+      --orange:#f59e0b; --text:#e6edf3; --muted:#8b949e; --error:#f85149; --success:#3fb950;
+      --yellow:#eab308; --team-a:#e6edf3; --team-b:#ef4444; --radius:10px;
+    }
+    body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+      background:var(--bg); color:var(--text); min-height:100vh; display:flex; justify-content:center; padding:24px 16px; }
+    .wrap { width:100%; max-width:560px; }
+    header { text-align:center; margin-bottom:24px; }
+    .logo { font-size:2.6rem; line-height:1; margin-bottom:8px; filter:drop-shadow(0 0 12px var(--accent)); }
+    header h1 { font-size:1.5rem; font-weight:700; }
+    header h1 span { color:var(--accent); }
+    header p { color:var(--muted); font-size:.85rem; margin-top:4px; }
+
+    .sec-label { font-size:.72rem; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;
+      color:var(--muted); margin:26px 4px 12px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:18px; margin-bottom:14px; }
+
+    /* próxima partida */
+    .next { text-align:center; background:linear-gradient(135deg,rgba(0,229,160,.08),rgba(124,58,237,.08)); }
+    .next-date { font-size:1.5rem; font-weight:800; margin:2px 0 4px; }
+    .next-when { font-size:.8rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+    .badge { display:inline-block; font-size:.68rem; font-weight:700; padding:3px 12px; border-radius:20px;
+      text-transform:uppercase; letter-spacing:.5px; margin-top:10px; }
+    .badge-aberta { background:rgba(63,185,80,.15); color:var(--success); border:1px solid rgba(63,185,80,.3); }
+    .badge-fechada { background:rgba(139,148,158,.1); color:var(--muted); border:1px solid var(--border); }
+    .stats { display:flex; gap:10px; margin-top:16px; }
+    .stat { flex:1; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 6px; }
+    .stat-num { font-size:1.5rem; font-weight:800; color:var(--accent); }
+    .stat-lbl { font-size:.66rem; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-top:2px; }
+    .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; justify-content:center; }
+    .chip { font-size:.78rem; background:rgba(63,185,80,.1); border:1px solid rgba(63,185,80,.3); color:var(--text);
+      padding:4px 10px; border-radius:14px; }
+    .chip-prom { background:rgba(124,58,237,.12); border-color:rgba(124,58,237,.4); }
+    .empty { color:var(--muted); font-size:.85rem; text-align:center; padding:8px; }
+
+    /* lista de partidas */
+    .match { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:10px; overflow:hidden; }
+    .match-head { display:flex; align-items:center; gap:10px; padding:14px 16px; cursor:pointer; user-select:none; }
+    .match-head:hover { background:rgba(255,255,255,.02); }
+    .m-date { font-weight:700; font-size:.95rem; }
+    .m-score { margin-left:auto; font-weight:800; font-size:1.05rem; font-variant-numeric:tabular-nums; }
+    .m-score .a { color:var(--team-a); } .m-score .b { color:var(--team-b); } .m-score .x { color:var(--muted); margin:0 6px; }
+    .m-arrow { color:var(--muted); transition:transform .2s; font-size:.8rem; }
+    .match.open .m-arrow { transform:rotate(180deg); }
+    .m-body { display:none; padding:0 16px 16px; border-top:1px solid var(--border); }
+    .match.open .m-body { display:block; }
+    .teams { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+    .team h4 { font-size:.72rem; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+    .team-a h4 { color:var(--team-a); } .team-b h4 { color:var(--team-b); }
+    .team ul { list-style:none; font-size:.85rem; }
+    .team li { padding:3px 0; color:var(--muted); }
+    .votacao { margin-top:16px; }
+    .votacao h4 { font-size:.72rem; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin-bottom:8px; }
+    .vrow { display:flex; align-items:center; gap:8px; padding:4px 0; font-size:.85rem; }
+    .vrow .pos { color:var(--muted); width:24px; }
+    .vrow .nm { flex:1; }
+    .vrow .md { font-weight:700; color:var(--accent); }
+    .vrow .n { color:var(--muted); font-size:.72rem; }
+    .loading { color:var(--muted); text-align:center; padding:16px; font-size:.9rem; }
+    .links { text-align:center; margin-top:22px; }
+    .links a { color:var(--accent); font-size:.82rem; text-decoration:none; margin:0 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">&#9917;</div>
+      <h1>Futebol de <span>Terça</span></h1>
+      <p>Bem-vindo! Confira a próxima pelada e o histórico</p>
+    </header>
+
+    <div class="sec-label">Próxima Partida</div>
+    <div id="next-wrap"><div class="card next"><div class="loading">Carregando...</div></div></div>
+
+    <div class="sec-label">Todas as Partidas</div>
+    <div id="matches"><div class="loading">Carregando...</div></div>
+
+    <div class="links">
+      <a href="presenca.html">Lista de presença</a> ·
+      <a href="times.html">Times</a> ·
+      <a href="avaliar.html">Avaliar</a>
+    </div>
+  </div>
+
+  <script>
+    const API = 'https://n8n-n8n.xktssy.easypanel.host/webhook';
+    function esc(s){ const d=document.createElement('div'); d.textContent=(s==null?'':s); return d.innerHTML; }
+    function fmtDataLonga(d){ if(!d) return ''; const p=String(d).split('-'); if(p.length!==3) return d;
+      const dt=new Date(+p[0],+p[1]-1,+p[2]); const dias=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+      const meses=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+      return `${dias[dt.getDay()]}, ${p[2]} de ${meses[+p[1]-1]}`; }
+    function fmtCurto(d){ if(!d) return ''; const p=String(d).split('-'); return p.length===3?`${p[2]}/${p[1]}/${p[0].slice(2)}`:d; }
+
+    async function jget(ep){ try{ const r=await fetch(`${API}/${ep}`); return await r.json(); }catch(e){ return null; } }
+    function dedup(arr){ const m=new Map(); (arr||[]).forEach(p=>m.set(p.chave||(p.partida_id+'_'+p.jogador_id),p)); return Array.from(m.values()); }
+
+    async function loadProxima(){
+      const wrap=document.getElementById('next-wrap');
+      const [par,pres]=await Promise.all([jget('pelada-partida-atual'), jget('pelada-presencas')]);
+      const partida = (par&&par.id)?par:(Array.isArray(par)?par.find(p=>p.id):null);
+      if(!partida || partida.status==='fechada' || partida.status==='encerrada'){
+        wrap.innerHTML='<div class="card next"><div class="empty">Nenhuma partida agendada no momento</div></div>'; return;
+      }
+      let lista = Array.isArray(pres)?pres:(pres&&pres.presencas)?pres.presencas:[];
+      lista = dedup(lista);
+      const confirmados = lista.filter(p=>p.status==='confirmado');
+      const espera = lista.filter(p=>p.tipo==='avulso' && p.status==='espera');
+      const st = (partida.status||'').toLowerCase();
+      const badge = (st==='aberta'||st==='confirmando')?'<span class="badge badge-aberta">Confirmações abertas</span>':`<span class="badge badge-fechada">${esc(partida.status)}</span>`;
+      wrap.innerHTML = `<div class="card next">
+        <div class="next-when">&#9917; Próxima pelada</div>
+        <div class="next-date">${fmtDataLonga(partida.data)}</div>
+        <div class="next-when">${esc(partida.horario||'21h')}</div>
+        ${badge}
+        <div class="stats">
+          <div class="stat"><div class="stat-num">${confirmados.length}</div><div class="stat-lbl">Confirmados</div></div>
+          <div class="stat"><div class="stat-num">${Math.max(0,12-confirmados.length)}</div><div class="stat-lbl">Vagas</div></div>
+          <div class="stat"><div class="stat-num">${espera.length}</div><div class="stat-lbl">Espera</div></div>
+        </div>
+        ${confirmados.length?`<div class="chips">${confirmados.map(p=>`<span class="chip ${p.origem==='promovido'?'chip-prom':''}">${esc(p.jogador_nome||p.nome)}</span>`).join('')}</div>`:'<div class="empty">Ninguém confirmado ainda</div>'}
+      </div>`;
+    }
+
+    async function loadPartidas(){
+      const box=document.getElementById('matches');
+      const [hist,desemp]=await Promise.all([jget('pelada-historico'), jget('pelada-desempenho')]);
+      const partidas = (hist&&hist.partidas)||[];
+      const votMap={}; ((desemp&&desemp.partidas)||[]).forEach(p=>votMap[p.id]=p.jogadores||[]);
+      if(!partidas.length){ box.innerHTML='<div class="empty">Nenhuma partida registrada ainda</div>'; return; }
+      box.innerHTML = partidas.map((p,idx)=>{
+        const ta=(p.time_a_nomes||[]); const tb=(p.time_b_nomes||[]);
+        const pa=(p.placar_a!==''&&p.placar_a!=null)?p.placar_a:'–';
+        const pb=(p.placar_b!==''&&p.placar_b!=null)?p.placar_b:'–';
+        const vot=votMap[p.id]||[];
+        return `<div class="match" id="m${idx}">
+          <div class="match-head" onclick="document.getElementById('m${idx}').classList.toggle('open')">
+            <span class="m-date">${fmtCurto(p.data)}</span>
+            <span class="m-score"><span class="a">${esc(pa)}</span><span class="x">x</span><span class="b">${esc(pb)}</span></span>
+            <span class="m-arrow">&#9660;</span>
+          </div>
+          <div class="m-body">
+            <div class="teams">
+              <div class="team team-a"><h4>&#9899; Time Preto${p.media_a?` · nota ${esc(p.media_a)}`:''}</h4><ul>${ta.length?ta.map(n=>`<li>${esc(n)}</li>`).join(''):'<li>—</li>'}</ul></div>
+              <div class="team team-b"><h4>&#128308; Time Vermelho${p.media_b?` · nota ${esc(p.media_b)}`:''}</h4><ul>${tb.length?tb.map(n=>`<li>${esc(n)}</li>`).join(''):'<li>—</li>'}</ul></div>
+            </div>
+            <div class="votacao">
+              <h4>&#11088; Votação (média das notas)</h4>
+              ${vot.length?vot.map((j,i)=>`<div class="vrow"><span class="pos">${i+1}º</span><span class="nm">${esc(j.nome)}</span><span class="md">${j.media.toFixed(1)}</span><span class="n">(${j.n})</span></div>`).join(''):'<div class="empty">Sem votos para esta partida</div>'}
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    loadProxima();
+    loadPartidas();
+  </script>
+</body>
+</html>
