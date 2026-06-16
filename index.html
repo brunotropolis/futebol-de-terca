@@ -234,6 +234,7 @@
         document.getElementById('av-nome').value=''; document.getElementById('av-tel').value='';
         document.querySelectorAll('.pos-opt input').forEach(c=>c.checked=false);
         document.getElementById('av-pref').value=''; document.getElementById('av-nivel').value=5; document.getElementById('av-nivel-v').textContent='5';
+        await new Promise(r=>setTimeout(r,1500)); // planilha leva ~1s pra refletir
         loadProxima();
       }catch(e){ msg.classList.add('err'); msg.textContent='Erro ao cadastrar, tenta de novo.'; }
       finally{ btn.disabled=false; btn.textContent='Entrar na lista de espera'; }
