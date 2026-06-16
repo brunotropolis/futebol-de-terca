@@ -116,6 +116,9 @@
     <div class="sec-label">Próxima Partida</div>
     <div id="next-wrap"><div class="card next"><div class="loading">Carregando...</div></div></div>
 
+    <div class="sec-label" id="teams-label" style="display:none">Times da Partida</div>
+    <div id="teams-wrap"></div>
+
     <div class="sec-label">É avulso? Garanta sua vaga</div>
     <div class="card">
       <div class="field"><label>Nome<span class="req">*</span></label><input type="text" id="av-nome" placeholder="Seu nome" /></div>
@@ -196,6 +199,23 @@
           ${confirmados.length?`<div class="chips">${confirmados.map(p=>`<span class="chip ${p.origem==='promovido'?'chip-prom':''}">${esc(p.jogador_nome||p.nome)}</span>`).join('')}</div>`:'<div class="empty">Ninguém confirmado ainda</div>'}
           ${addr}
         </div>`;
+      }
+      // times sorteados aparecem na home depois do sorteio
+      const elTeams=document.getElementById('teams-wrap'), elTL=document.getElementById('teams-label');
+      if(elTeams){
+        const taN=String((_partida&&_partida.time_a_nomes)||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const tbN=String((_partida&&_partida.time_b_nomes)||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const taI=String((_partida&&_partida.time_a)||'').split(',').map(s=>s.trim());
+        const tbI=String((_partida&&_partida.time_b)||'').split(',').map(s=>s.trim());
+        const posMap={}; lista.forEach(p=>{ posMap[String(p.jogador_id)]=p.posicao_preferida||''; });
+        const li=(nomes,ids)=>nomes.map((n,i)=>`<li>${esc(n)}${posMap[ids[i]]?` <span style="color:var(--muted)">· ${esc(posMap[ids[i]])}</span>`:''}</li>`).join('');
+        if(taN.length||tbN.length){
+          if(elTL) elTL.style.display='';
+          elTeams.innerHTML=`<div class="card"><div class="teams">
+            <div class="team team-a"><h4>&#9899; Time Preto</h4><ul>${li(taN,taI)||'<li>—</li>'}</ul></div>
+            <div class="team team-b"><h4>&#128308; Time Vermelho</h4><ul>${li(tbN,tbI)||'<li>—</li>'}</ul></div>
+          </div></div>`;
+        } else { if(elTL) elTL.style.display='none'; elTeams.innerHTML=''; }
       }
       renderEspera(espera);
       const btn=document.getElementById('av-btn');
