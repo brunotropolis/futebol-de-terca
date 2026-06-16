@@ -185,7 +185,8 @@
         wrap.innerHTML=`<div class="card next"><div class="empty">Nenhuma partida agendada no momento</div>${addr}</div>`;
       } else {
         const st=(partida.status||'').toLowerCase();
-        const badge=(st==='aberta'||st==='confirmando')?'<span class="badge badge-aberta">Confirmações abertas</span>':`<span class="badge badge-fechada">${esc(partida.status)}</span>`;
+        const lbl={aberta:'Confirmações abertas',confirmando:'Confirmações abertas',times_definidos:'Times definidos',avaliando:'Avaliação aberta',fechada:'Encerrada',encerrada:'Encerrada'}[st]||partida.status;
+        const badge=(st==='aberta'||st==='confirmando')?`<span class="badge badge-aberta">${esc(lbl)}</span>`:`<span class="badge badge-fechada">${esc(lbl)}</span>`;
         wrap.innerHTML = `<div class="card next">
           <div class="next-when">&#9917; Próxima pelada</div>
           <div class="next-date">${fmtDataLonga(partida.data)}</div>
