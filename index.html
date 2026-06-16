@@ -66,6 +66,41 @@
     .vrow .md { font-weight:700; color:var(--accent); }
     .vrow .n { color:var(--muted); font-size:.72rem; }
     .loading { color:var(--muted); text-align:center; padding:16px; font-size:.9rem; }
+
+    /* endereço */
+    .next-addr { margin-top:14px; padding-top:14px; border-top:1px solid var(--border); font-size:.85rem; line-height:1.5; }
+    .next-addr .pin { color:var(--accent); font-weight:700; }
+    .next-addr a { color:var(--accent); text-decoration:none; }
+
+    /* lista de espera */
+    .wait-list { display:flex; flex-direction:column; gap:6px; }
+    .wait-item { display:flex; align-items:center; gap:8px; background:var(--bg); border:1px solid var(--border);
+      border-radius:8px; padding:8px 12px; font-size:.88rem; }
+    .wait-item .ord { color:var(--yellow); font-weight:700; font-size:.8rem; min-width:22px; }
+    .wait-item .pos { margin-left:auto; font-size:.72rem; color:var(--muted); }
+
+    /* form avulso */
+    .field { margin-bottom:14px; }
+    .field label { display:block; font-size:.8rem; font-weight:500; color:var(--muted); margin-bottom:6px; }
+    .field .req { color:var(--accent); }
+    .field input, .field select { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:7px;
+      color:var(--text); font-size:.92rem; padding:10px 12px; outline:none; font-family:inherit; }
+    .field input:focus, .field select:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,229,160,.12); }
+    .pos-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .pos-opt input { position:absolute; opacity:0; }
+    .pos-opt label { display:block; text-align:center; padding:9px; border:1px solid var(--border); border-radius:7px;
+      background:var(--bg); cursor:pointer; font-size:.85rem; color:var(--muted); }
+    .pos-opt input:checked + label { border-color:var(--accent); color:var(--accent); background:rgba(0,229,160,.06); }
+    .range-row { display:flex; align-items:center; gap:12px; }
+    .range-row input[type=range] { flex:1; }
+    .range-val { font-weight:700; color:var(--accent); min-width:28px; text-align:center; }
+    .btn-go { width:100%; padding:12px; background:var(--accent); color:#0d1117; font-weight:700; font-size:.95rem;
+      border:none; border-radius:8px; cursor:pointer; font-family:inherit; }
+    .btn-go:disabled { opacity:.5; cursor:not-allowed; }
+    .hint { font-size:.75rem; color:var(--muted); margin-top:6px; }
+    .form-msg { font-size:.85rem; margin-top:10px; text-align:center; }
+    .form-msg.ok { color:var(--success); } .form-msg.err { color:var(--error); }
+
     .links { text-align:center; margin-top:22px; }
     .links a { color:var(--accent); font-size:.82rem; text-decoration:none; margin:0 8px; }
   </style>
@@ -80,6 +115,33 @@
 
     <div class="sec-label">Próxima Partida</div>
     <div id="next-wrap"><div class="card next"><div class="loading">Carregando...</div></div></div>
+
+    <div class="sec-label">É avulso? Garanta sua vaga</div>
+    <div class="card">
+      <div class="field"><label>Nome<span class="req">*</span></label><input type="text" id="av-nome" placeholder="Seu nome" /></div>
+      <div class="field"><label>WhatsApp (com DDD)<span class="req">*</span></label><input type="text" id="av-tel" inputmode="numeric" placeholder="Ex: 5541999998888" />
+        <div class="hint">Seu telefone é o que identifica você nas próximas peladas (pra somar suas notas).</div>
+      </div>
+      <div class="field"><label>Posições que joga (até 3)<span class="req">*</span></label>
+        <div class="pos-grid">
+          <div class="pos-opt"><input type="checkbox" id="p-zag" value="Zagueiro" onchange="limitPos(this)"/><label for="p-zag">🛡️ Zagueiro</label></div>
+          <div class="pos-opt"><input type="checkbox" id="p-mei" value="Meia" onchange="limitPos(this)"/><label for="p-mei">🎯 Meia</label></div>
+          <div class="pos-opt"><input type="checkbox" id="p-pon" value="Ponta" onchange="limitPos(this)"/><label for="p-pon">⚡ Ponta</label></div>
+          <div class="pos-opt"><input type="checkbox" id="p-ata" value="Atacante" onchange="limitPos(this)"/><label for="p-ata">⚽ Atacante</label></div>
+        </div>
+      </div>
+      <div class="field"><label>Posição preferida<span class="req">*</span></label>
+        <select id="av-pref"><option value="">Selecione...</option><option>Zagueiro</option><option>Meia</option><option>Ponta</option><option>Atacante</option></select>
+      </div>
+      <div class="field"><label>Nível (0–10)</label>
+        <div class="range-row"><input type="range" id="av-nivel" min="0" max="10" value="5" oninput="document.getElementById('av-nivel-v').textContent=this.value"/><span class="range-val" id="av-nivel-v">5</span></div>
+      </div>
+      <button class="btn-go" id="av-btn" onclick="cadastrarAvulso()">Entrar na lista de espera</button>
+      <div class="form-msg" id="av-msg"></div>
+    </div>
+
+    <div class="sec-label">Lista de Espera</div>
+    <div id="espera-wrap"><div class="card"><div class="loading">Carregando...</div></div></div>
 
     <div class="sec-label">Todas as Partidas</div>
     <div id="matches"><div class="loading">Carregando...</div></div>
@@ -103,31 +165,78 @@
     async function jget(ep){ try{ const r=await fetch(`${API}/${ep}`); return await r.json(); }catch(e){ return null; } }
     function dedup(arr){ const m=new Map(); (arr||[]).forEach(p=>m.set(p.chave||(p.partida_id+'_'+p.jogador_id),p)); return Array.from(m.values()); }
 
+    let _partida = null;
+    const MAPS = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Sociedade Morgenau, R. Fernandes de Barros, 2 - Cristo Rei, Curitiba');
+
     async function loadProxima(){
       const wrap=document.getElementById('next-wrap');
       const [par,pres]=await Promise.all([jget('pelada-partida-atual'), jget('pelada-presencas')]);
       const partida = (par&&par.id)?par:(Array.isArray(par)?par.find(p=>p.id):null);
-      if(!partida || partida.status==='fechada' || partida.status==='encerrada'){
-        wrap.innerHTML='<div class="card next"><div class="empty">Nenhuma partida agendada no momento</div></div>'; return;
-      }
+      _partida = (partida && partida.status!=='fechada' && partida.status!=='encerrada') ? partida : null;
       let lista = Array.isArray(pres)?pres:(pres&&pres.presencas)?pres.presencas:[];
       lista = dedup(lista);
       const confirmados = lista.filter(p=>p.status==='confirmado');
       const espera = lista.filter(p=>p.tipo==='avulso' && p.status==='espera');
-      const st = (partida.status||'').toLowerCase();
-      const badge = (st==='aberta'||st==='confirmando')?'<span class="badge badge-aberta">Confirmações abertas</span>':`<span class="badge badge-fechada">${esc(partida.status)}</span>`;
-      wrap.innerHTML = `<div class="card next">
-        <div class="next-when">&#9917; Próxima pelada</div>
-        <div class="next-date">${fmtDataLonga(partida.data)}</div>
-        <div class="next-when">${esc(partida.horario||'21h')}</div>
-        ${badge}
-        <div class="stats">
-          <div class="stat"><div class="stat-num">${confirmados.length}</div><div class="stat-lbl">Confirmados</div></div>
-          <div class="stat"><div class="stat-num">${Math.max(0,12-confirmados.length)}</div><div class="stat-lbl">Vagas</div></div>
-          <div class="stat"><div class="stat-num">${espera.length}</div><div class="stat-lbl">Espera</div></div>
-        </div>
-        ${confirmados.length?`<div class="chips">${confirmados.map(p=>`<span class="chip ${p.origem==='promovido'?'chip-prom':''}">${esc(p.jogador_nome||p.nome)}</span>`).join('')}</div>`:'<div class="empty">Ninguém confirmado ainda</div>'}
-      </div>`;
+      const addr = `<div class="next-addr"><span class="pin">&#128205; Sociedade Morgenau</span><br>R. Fernandes de Barros, 2 — Cristo Rei<br>Horário: ${esc((_partida&&_partida.horario)||'21h')} · <a href="${MAPS}" target="_blank" rel="noopener">ver no mapa</a></div>`;
+      if(!_partida){
+        wrap.innerHTML=`<div class="card next"><div class="empty">Nenhuma partida agendada no momento</div>${addr}</div>`;
+      } else {
+        const st=(partida.status||'').toLowerCase();
+        const badge=(st==='aberta'||st==='confirmando')?'<span class="badge badge-aberta">Confirmações abertas</span>':`<span class="badge badge-fechada">${esc(partida.status)}</span>`;
+        wrap.innerHTML = `<div class="card next">
+          <div class="next-when">&#9917; Próxima pelada</div>
+          <div class="next-date">${fmtDataLonga(partida.data)}</div>
+          <div class="next-when">${esc(partida.horario||'21h')}</div>
+          ${badge}
+          <div class="stats">
+            <div class="stat"><div class="stat-num">${confirmados.length}</div><div class="stat-lbl">Confirmados</div></div>
+            <div class="stat"><div class="stat-num">${Math.max(0,12-confirmados.length)}</div><div class="stat-lbl">Vagas</div></div>
+            <div class="stat"><div class="stat-num">${espera.length}</div><div class="stat-lbl">Espera</div></div>
+          </div>
+          ${confirmados.length?`<div class="chips">${confirmados.map(p=>`<span class="chip ${p.origem==='promovido'?'chip-prom':''}">${esc(p.jogador_nome||p.nome)}</span>`).join('')}</div>`:'<div class="empty">Ninguém confirmado ainda</div>'}
+          ${addr}
+        </div>`;
+      }
+      renderEspera(espera);
+      const btn=document.getElementById('av-btn');
+      if(btn){ btn.disabled=!_partida; btn.textContent=_partida?'Entrar na lista de espera':'Sem partida aberta no momento'; }
+    }
+
+    function renderEspera(espera){
+      const w=document.getElementById('espera-wrap'); if(!w) return;
+      w.innerHTML = `<div class="card">${espera.length
+        ? '<div class="wait-list">'+espera.map((p,i)=>`<div class="wait-item"><span class="ord">#${i+1}</span><span>${esc(p.jogador_nome||p.nome)}</span><span class="pos">${esc(p.posicao_preferida||'')}</span></div>`).join('')+'</div>'
+        : '<div class="empty">Ninguém na lista de espera ainda</div>'}</div>`;
+    }
+
+    function limitPos(el){ if(document.querySelectorAll('.pos-opt input:checked').length>3) el.checked=false; }
+
+    async function cadastrarAvulso(){
+      const msg=document.getElementById('av-msg'); msg.className='form-msg'; msg.textContent='';
+      if(!_partida){ msg.classList.add('err'); msg.textContent='Não há partida aberta agora.'; return; }
+      const nome=document.getElementById('av-nome').value.trim();
+      const tel=document.getElementById('av-tel').value.replace(/\D/g,'');
+      const checked=Array.from(document.querySelectorAll('.pos-opt input:checked')).map(c=>c.value);
+      const pref=document.getElementById('av-pref').value;
+      const nivel=parseInt(document.getElementById('av-nivel').value);
+      if(!nome){ msg.classList.add('err'); msg.textContent='Preencha seu nome.'; return; }
+      if(tel.length<10){ msg.classList.add('err'); msg.textContent='Coloque um WhatsApp válido com DDD.'; return; }
+      if(!checked.length){ msg.classList.add('err'); msg.textContent='Escolha ao menos uma posição.'; return; }
+      if(!pref){ msg.classList.add('err'); msg.textContent='Escolha a posição preferida.'; return; }
+      const btn=document.getElementById('av-btn'); btn.disabled=true; btn.textContent='Enviando...';
+      try{
+        const r=await fetch(`${API}/pelada-confirmar`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+          partida_id:_partida.id, nome, tipo:'avulso', telefone:tel,
+          posicao_1:checked[0]||'', posicao_2:checked[1]||'', posicao_3:checked[2]||'',
+          posicao_preferida:pref, nivel_convidado:nivel })});
+        if(!r.ok) throw new Error('erro');
+        msg.classList.add('ok'); msg.textContent='✅ Pronto! Você entrou na lista de espera.';
+        document.getElementById('av-nome').value=''; document.getElementById('av-tel').value='';
+        document.querySelectorAll('.pos-opt input').forEach(c=>c.checked=false);
+        document.getElementById('av-pref').value=''; document.getElementById('av-nivel').value=5; document.getElementById('av-nivel-v').textContent='5';
+        loadProxima();
+      }catch(e){ msg.classList.add('err'); msg.textContent='Erro ao cadastrar, tenta de novo.'; }
+      finally{ btn.disabled=false; btn.textContent='Entrar na lista de espera'; }
     }
 
     async function loadPartidas(){
