@@ -504,6 +504,7 @@ const ENDPOINTS = {
   confirmar:   `${API_BASE}/pelada-confirmar`,
   desempenho:  `${API_BASE}/pelada-desempenho`,
   cadastro:    `${API_BASE}/pelada-cadastro`,
+  conviteAvaliacao: `${API_BASE}/pelada-convite-avaliacao`,
 };
 
 const SITE_BASE = window.location.href.replace(/\/[^/]*$/, '/');
@@ -1082,6 +1083,15 @@ async function salvarPlacar() {
       placar_b: placarB,
     });
     showToast('Placar Salvo!', `TIME PRETO ${placarA} x ${placarB} TIME VERMELHO`);
+    // dispara convite de avaliação pros confirmados (WhatsApp)
+    try {
+      const r = await fetch(ENDPOINTS.conviteAvaliacao, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ partida_id: currentMatch.id, placar_a: placarA, placar_b: placarB }),
+      });
+      const d = await r.json().catch(() => ({}));
+      showToast('Avaliação aberta!', `Convite enviado pra ${d.enviados != null ? d.enviados : 'os'} jogadores avaliarem.`, '⭐');
+    } catch (e) { /* placar já salvo; convite é best-effort */ }
     await loadCurrentMatch();
   } catch (err) {
     showToast('Erro', err.message, '\u274C', true);
